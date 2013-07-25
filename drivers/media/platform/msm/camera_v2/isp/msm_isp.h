@@ -383,10 +383,12 @@ struct vfe_device {
 	struct resource *vfe_irq;
 	struct resource *vfe_mem;
 	struct resource *vfe_vbif_mem;
+	struct resource *tcsr_mem;
 	struct resource *vfe_io;
 	struct resource *vfe_vbif_io;
 	void __iomem *vfe_base;
 	void __iomem *vfe_vbif_base;
+	void __iomem *tcsr_base;
 
 	struct device *iommu_ctx[MAX_IOMMU_CTX];
 
@@ -416,6 +418,7 @@ struct vfe_device {
 	uint8_t skip_isp_send_event;
 	spinlock_t  cfg_flag_lock;
 
+	uint32_t soc_hw_version;
 	uint32_t vfe_hw_version;
 	struct msm_vfe_hardware_info *hw_info;
 	struct msm_vfe_axi_shared_data axi_data;
