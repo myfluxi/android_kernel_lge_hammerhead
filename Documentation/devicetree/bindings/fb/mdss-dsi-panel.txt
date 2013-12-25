@@ -256,6 +256,7 @@ Optional properties:
 					delay required by panel to reach functional.
 - qcom,mdss-dsi-rx-eot-ignore:		Boolean used to enable ignoring end of transmission packets.
 - qcom,mdss-dsi-tx-eot-append:		Boolean used to enable appending end of transmission packets.
+- qcom,ulps-enabled:			Boolean to enable support for Ultra Low Power State (ULPS) mode.
 - qcom,panel-roi-alignment:		Specifies the panel ROI alignment restrictions on its
 					left, top, width, height alignments and minimum width and
 					height values
@@ -355,6 +356,7 @@ Example:
 		qcom,mdss-dsi-init-delay-us = <100>;
 		mdss-dsi-rx-eot-ignore;
 		mdss-dsi-tx-eot-append;
+		qcom,ulps-enabled;
 		qcom,panel-roi-alignment = <4 4 2 2 20 20>;
 	};
 };
