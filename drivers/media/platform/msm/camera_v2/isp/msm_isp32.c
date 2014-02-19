@@ -145,6 +145,7 @@ static void msm_vfe32_release_hardware(struct vfe_device *vfe_dev)
 
 static void msm_vfe32_init_hardware_reg(struct vfe_device *vfe_dev)
 {
+	uint32_t wm_base, i = 0;
 	/* CGC_OVERRIDE */
 	msm_camera_io_w(0x07FFFFFF, vfe_dev->vfe_base + 0xC);
 	/* BUS_CFG */
@@ -153,7 +154,12 @@ static void msm_vfe32_init_hardware_reg(struct vfe_device *vfe_dev)
 	msm_camera_io_w_mb(0x1CFFFFFF, vfe_dev->vfe_base + 0x20);
 	msm_camera_io_w(0xFFFFFFFF, vfe_dev->vfe_base + 0x24);
 	msm_camera_io_w_mb(0x1FFFFFFF, vfe_dev->vfe_base + 0x28);
-
+	for (i = 0; i<=6; i++) {
+		wm_base = VFE32_WM_BASE(i);
+		msm_camera_io_w(0x0, vfe_dev->vfe_base + wm_base);
+		wm_base = VFE32_WM_BASE(i);
+		msm_camera_io_w(0x0, vfe_dev->vfe_base + wm_base);
+	}
 }
 
 static void msm_vfe32_process_reset_irq(struct vfe_device *vfe_dev,
