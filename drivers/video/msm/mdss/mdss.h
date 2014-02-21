@@ -195,6 +195,7 @@ struct mdss_data_type {
 	int handoff_pending;
 	struct mdss_prefill_data prefill_data;
 	int iommu_ref_cnt;
+	bool ulps;
 };
 extern struct mdss_data_type *mdss_res;
 
