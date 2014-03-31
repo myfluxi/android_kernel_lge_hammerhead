@@ -20,7 +20,6 @@
 #include <linux/spinlock.h>
 #include <linux/proc_fs.h>
 #include <linux/atomic.h>
-#include <linux/wait.h>
 #include <linux/videodev2.h>
 #include <linux/msm_ion.h>
 #include <linux/iommu.h>
@@ -403,7 +402,7 @@ int msm_create_command_ack_q(unsigned int session_id, unsigned int stream_id)
 
 	msm_init_queue(&cmd_ack->command_q);
 	INIT_LIST_HEAD(&cmd_ack->list);
-	init_waitqueue_head(&cmd_ack->wait);
+	init_completion(&cmd_ack->wait_complete);
 	cmd_ack->stream_id = stream_id;
 
 	msm_enqueue(&session->command_ack_q, &cmd_ack->list);
@@ -603,7 +602,7 @@ static long msm_private_ioctl(struct file *file, void *fh,
 		   spin_flags);
 		ret_cmd->event = *(struct v4l2_event *)arg;
 		msm_enqueue(&cmd_ack->command_q, &ret_cmd->list);
-		wake_up(&cmd_ack->wait);
+		complete(&cmd_ack->wait_complete);
 		spin_unlock_irqrestore(&(session->command_ack_q.lock),
 		   spin_flags);
 	}
@@ -726,8 +725,7 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 		return rc;
 	}
 
-	rc = wait_event_interruptible_timeout(cmd_ack->wait,
-		!list_empty_careful(&cmd_ack->command_q.list),
+	rc = wait_for_completion_timeout(&cmd_ack->wait_complete,
 		msecs_to_jiffies(timeout));
 
 	if (list_empty_careful(&cmd_ack->command_q.list)) {
