@@ -30,6 +30,8 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
+#include <linux/of.h>
+#include <linux/slab.h>
 #include <trace/events/power.h>
 #include <mach/socinfo.h>
 
@@ -37,7 +39,7 @@ static DEFINE_MUTEX(l2bw_lock);
 
 static struct clk *cpu_clk[NR_CPUS];
 static struct clk *l2_clk;
-static struct cpufreq_frequency_table *freq_table;
+static DEFINE_PER_CPU(struct cpufreq_frequency_table *, freq_table);
 static bool hotplug_ready;
 
 struct cpufreq_work_struct {
@@ -179,7 +181,8 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 	int cur_freq;
 	int index;
 	int ret = 0;
-	struct cpufreq_frequency_table *table = freq_table;
+	struct cpufreq_frequency_table *table =
+			per_cpu(freq_table, policy->cpu);
 	struct cpufreq_work_struct *cpu_work = NULL;
 	int cpu;
 
@@ -336,38 +339,37 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.attr		= msm_freq_attr,
 };
 
-#define PROP_TBL "qcom,cpufreq-table"
-static int cpufreq_parse_dt(struct device *dev)
+static struct cpufreq_frequency_table *cpufreq_parse_dt(struct device *dev,
+						char *tbl_name, int cpu)
 {
 	int ret, nf, i;
 	u32 *data;
+	struct cpufreq_frequency_table *ftbl;
 
 	/* Parse list of usable CPU frequencies. */
-	if (!of_find_property(dev->of_node, PROP_TBL, &nf))
-		return -EINVAL;
+	if (!of_find_property(dev->of_node, tbl_name, &nf))
+		return ERR_PTR(-EINVAL);
 	nf /= sizeof(*data);
 
 	if (nf == 0)
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	data = devm_kzalloc(dev, nf * sizeof(*data), GFP_KERNEL);
 	if (!data)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
-	ret = of_property_read_u32_array(dev->of_node, PROP_TBL, data, nf);
+	ret = of_property_read_u32_array(dev->of_node, tbl_name, data, nf);
 	if (ret)
-		return ret;
+		return ERR_PTR(ret);
 
-	/* Allocate all data structures. */
-	freq_table = devm_kzalloc(dev, (nf + 1) * sizeof(*freq_table),
-				  GFP_KERNEL);
-	if (!freq_table)
-		return -ENOMEM;
+	ftbl = devm_kzalloc(dev, (nf + 1) * sizeof(*ftbl), GFP_KERNEL);
+	if (!ftbl)
+		return ERR_PTR(-ENOMEM);
 
 	for (i = 0; i < nf; i++) {
 		unsigned long f;
 
-		f = clk_round_rate(cpu_clk[0], data[i] * 1000);
+		f = clk_round_rate(cpu_clk[cpu], data[i] * 1000);
 		if (IS_ERR_VALUE(f))
 			break;
 		f /= 1000;
@@ -387,27 +389,29 @@ static int cpufreq_parse_dt(struct device *dev)
 		 * In this case, we can CPUfreq to use 2.2 GHz and 2.3 GHz
 		 * instead of rejecting the 2.5 GHz table entry.
 		 */
-		if (i > 0 && f <= freq_table[i-1].frequency)
+		if (i > 0 && f <= ftbl[i-1].frequency)
 			break;
 
-		freq_table[i].index = i;
-		freq_table[i].frequency = f;
+		ftbl[i].index = i;
+		ftbl[i].frequency = f;
 	}
 
-	freq_table[i].index = i;
-	freq_table[i].frequency = CPUFREQ_TABLE_END;
+	ftbl[i].index = i;
+	ftbl[i].frequency = CPUFREQ_TABLE_END;
 
 	devm_kfree(dev, data);
 
-	return 0;
+	return ftbl;
 }
 
 static int __init msm_cpufreq_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	char clk_name[] = "cpu??_clk";
+	char tbl_name[] = "qcom,cpufreq-table-??";
 	struct clk *c;
-	int cpu, ret;
+	int cpu;
+	struct cpufreq_frequency_table *ftbl;
 
 	l2_clk = devm_clk_get(dev, "l2_clk");
 	if (IS_ERR(l2_clk))
@@ -422,9 +426,50 @@ static int __init msm_cpufreq_probe(struct platform_device *pdev)
 	}
 	hotplug_ready = true;
 
-	ret = cpufreq_parse_dt(dev);
-	if (ret)
-		return ret;
+	/* Parse commong cpufreq table for all CPUs */
+	ftbl = cpufreq_parse_dt(dev, "qcom,cpufreq-table", 0);
+	if (!IS_ERR(ftbl)) {
+		for_each_possible_cpu(cpu)
+			per_cpu(freq_table, cpu) = ftbl;
+		return 0;
+	}
+
+	/*
+	 * No common table. Parse individual tables for each unique
+	 * CPU clock.
+	 */
+	for_each_possible_cpu(cpu) {
+		snprintf(tbl_name, sizeof(tbl_name),
+			 "qcom,cpufreq-table-%d", cpu);
+		ftbl = cpufreq_parse_dt(dev, tbl_name, cpu);
+
+		/* CPU0 must contain freq table */
+		if (cpu == 0 && IS_ERR(ftbl)) {
+			dev_err(dev, "Failed to parse CPU0's freq table\n");
+			return PTR_ERR(ftbl);
+		}
+		if (cpu == 0) {
+			per_cpu(freq_table, cpu) = ftbl;
+			continue;
+		}
+
+		if (cpu_clk[cpu] != cpu_clk[cpu - 1] && IS_ERR(ftbl)) {
+			dev_err(dev, "Failed to parse CPU%d's freq table\n",
+				cpu);
+			return PTR_ERR(ftbl);
+		}
+
+		/* Use previous CPU's table if it shares same clock */
+		if (cpu_clk[cpu] == cpu_clk[cpu - 1]) {
+			if (!IS_ERR(ftbl)) {
+				dev_warn(dev, "Conflicting tables for CPU%d\n",
+					 cpu);
+				kfree(ftbl);
+			}
+			ftbl = per_cpu(freq_table, cpu - 1);
+		}
+		per_cpu(freq_table, cpu) = ftbl;
+	}
 
 	return 0;
 }
