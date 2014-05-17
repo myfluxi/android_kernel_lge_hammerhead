@@ -262,7 +262,7 @@ config ARCH_MSM8974
 	select MULTI_IRQ_HANDLER
 	select MSM_MULTIMEDIA_USE_ION
 	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
+	select MSM_DEVFREQ_DEVBW
 	select MSM_PIL
 	select MSM_SPM_V2
 	select MSM_L2_SPM
@@ -312,14 +312,14 @@ config ARCH_APQ8084
 	select MSM_L2_SPM
 	select MSM_RPM_SMD
 	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
+	select MSM_DEVFREQ_DEVBW
 	select ENABLE_VMALLOC_SAVINGS
 
 config ARCH_MPQ8092
 	bool "MPQ8092"
 	select ARCH_MSM_KRAITMP
 	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
+	select MSM_DEVFREQ_DEVBW
 	select GPIO_MSM_V3
 	select ARM_GIC
 	select MULTI_IRQ_HANDLER
@@ -339,6 +339,7 @@ config ARCH_FSM9900
 	select MSM_GPIOMUX
 	select MULTI_IRQ_HANDLER
 	select PM_DEVFREQ
+	select MSM_DEVFREQ_DEVBW
 	select MSM_PIL
 	select MSM_NATIVE_RESTART
 	select MSM_RESTART_V2
@@ -443,7 +444,7 @@ config ARCH_MSMKRYPTON
 	select QMI_ENCDEC
 	select MSM_CORTEX_A7
 	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
+	select MSM_DEVFREQ_DEVBW
 
 config ARCH_MSM8610
 	bool "MSM8610"
@@ -474,7 +475,7 @@ config ARCH_MSM8610
 	select CPU_FREQ_MSM
 	select CPU_FREQ
 	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
+	select MSM_DEVFREQ_DEVBW
 	select MSM_PIL
 	select MSM_RUN_QUEUE_STATS
 	select ARM_HAS_SG_CHAIN
@@ -516,7 +517,7 @@ config ARCH_MSM8226
 	select CPU_FREQ_MSM
 	select CPU_FREQ
 	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
+	select MSM_DEVFREQ_DEVBW
 	select MSM_PIL
 	select MSM_RUN_QUEUE_STATS
 	select ARM_HAS_SG_CHAIN
@@ -538,7 +539,7 @@ config ARCH_MSMSAMARIUM
 	select CPU_V7
 	select MSM_SCM
 	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
+	select MSM_DEVFREQ_DEVBW
 	select MSM_PIL
 	select MSM_GPIOMUX
 	select MULTI_IRQ_HANDLER
