@@ -923,6 +923,8 @@ static void mdss_mdp_overlay_cleanup(struct msm_fb_data_type *mfd,
 			__mdss_mdp_overlay_free_list_add(mfd, &pipe->front_buf);
 		mdss_mdp_data_free(&pipe->back_buf);
 		list_del_init(&pipe->list);
+		if (recovery_mode)
+			mdss_mdp_mixer_pipe_unstage(pipe);
 		mdss_mdp_pipe_destroy(pipe);
 	}
 	mutex_unlock(&mdp5_data->list_lock);
