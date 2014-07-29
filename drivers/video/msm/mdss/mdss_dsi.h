@@ -323,6 +323,7 @@ struct mdss_dsi_ctrl_pdata {
 	int pwm_enabled;
 	int clk_lane_cnt;
 	bool dmap_iommu_map;
+	bool dsi_irq_line;
 
 	struct mdss_rect roi;
 	struct pwm_device *pwm_bl;

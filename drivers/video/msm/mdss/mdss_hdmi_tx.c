@@ -3913,6 +3913,12 @@ static int __devinit hdmi_tx_probe(struct platform_device *pdev)
 		goto failed_dt_data;
 	}
 
+	hdmi_tx_hw.irq_info = mdss_intr_line();
+	if (hdmi_tx_hw.irq_info == NULL) {
+		pr_err("Failed to get mdss irq information\n");
+		return -ENODEV;
+	}
+
 	rc = hdmi_tx_init_resource(hdmi_ctrl);
 	if (rc) {
 		DEV_ERR("%s: FAILED: resource init. rc=%d\n",
