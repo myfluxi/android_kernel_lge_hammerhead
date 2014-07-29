@@ -1061,6 +1061,12 @@ static int __devinit mdss_edp_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	mdss_edp_hw.irq_info = mdss_intr_line();
+	if (mdss_edp_hw.irq_info == NULL) {
+		pr_err("Failed to get mdss irq information\n");
+		return -ENODEV;
+	}
+
 	edp_drv->pdev = pdev;
 	edp_drv->pdev->id = 1;
 	edp_drv->clk_on = 0;
