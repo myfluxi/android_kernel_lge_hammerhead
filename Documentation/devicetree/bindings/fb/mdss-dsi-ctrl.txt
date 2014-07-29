@@ -66,6 +66,7 @@ Optional properties:
 					both modes.
 - qcom,mmss-ulp-clamp-ctrl-offset:	Specifies the offset for dsi ulps clamp control register.
 - qcom,mmss-phyreset-ctrl-offset:	Specifies the offset for dsi phy reset control register.
+- qcom,dsi-irq-line:			Boolean specifies if DSI has a different irq line than mdp.
 
 - pinctrl-names:			List of names to assign mdss pin states defined in pinctrl device node
 					Refer to pinctrl-bindings.txt
@@ -108,6 +109,7 @@ Example:
 		qcom,platform-te-gpio = <&msmgpio 24 0>;
 		qcom,platform-enable-gpio = <&msmgpio 58 1>;
 		qcom,platform-mode-gpio = <&msmgpio 7 0>;
+		qcom,dsi-irq-line;
 
 		qcom,core-supply-entries {
 			#address-cells = <1>;

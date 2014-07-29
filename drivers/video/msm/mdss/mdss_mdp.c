@@ -184,7 +184,7 @@ static irqreturn_t mdss_irq_handler(int irq, void *ptr)
 	if (!mdata)
 		return IRQ_NONE;
 
-	mdata->irq_buzy = true;
+	mdss_mdp_hw.irq_info->irq_buzy = true;
 
 	if (intr & MDSS_INTR_MDP) {
 		spin_lock(&mdp_lock);
@@ -204,7 +204,7 @@ static irqreturn_t mdss_irq_handler(int irq, void *ptr)
 	if (intr & MDSS_INTR_HDMI)
 		mdss_irq_dispatch(MDSS_HW_HDMI, irq, ptr);
 
-	mdata->irq_buzy = false;
+	mdss_mdp_hw.irq_info->irq_buzy = false;
 
 	return IRQ_HANDLED;
 }
@@ -247,17 +247,17 @@ void mdss_enable_irq(struct mdss_hw *hw)
 	ndx_bit = BIT(hw->hw_ndx);
 
 	pr_debug("Enable HW=%d irq ena=%d mask=%x\n", hw->hw_ndx,
-			mdss_res->irq_ena, mdss_res->irq_mask);
+			hw->irq_info->irq_ena, hw->irq_info->irq_mask);
 
 	spin_lock_irqsave(&mdss_lock, irq_flags);
-	if (mdss_res->irq_mask & ndx_bit) {
+	if (hw->irq_info->irq_mask & ndx_bit) {
 		pr_debug("MDSS HW ndx=%d is already set, mask=%x\n",
-				hw->hw_ndx, mdss_res->irq_mask);
+				hw->hw_ndx, hw->irq_info->irq_mask);
 	} else {
-		mdss_res->irq_mask |= ndx_bit;
-		if (!mdss_res->irq_ena) {
-			mdss_res->irq_ena = true;
-			enable_irq(mdss_res->irq);
+		hw->irq_info->irq_mask |= ndx_bit;
+		if (!hw->irq_info->irq_ena) {
+			hw->irq_info->irq_ena = true;
+			enable_irq(hw->irq_info->irq);
 		}
 	}
 	spin_unlock_irqrestore(&mdss_lock, irq_flags);
@@ -275,18 +275,16 @@ void mdss_disable_irq(struct mdss_hw *hw)
 	ndx_bit = BIT(hw->hw_ndx);
 
 	pr_debug("Disable HW=%d irq ena=%d mask=%x\n", hw->hw_ndx,
-			mdss_res->irq_ena, mdss_res->irq_mask);
+			hw->irq_info->irq_ena, hw->irq_info->irq_mask);
 
 	spin_lock_irqsave(&mdss_lock, irq_flags);
-	if (!(mdss_res->irq_mask & ndx_bit)) {
-		pr_warn("MDSS HW ndx=%d is NOT set, mask=%x, hist mask=%x\n",
-			hw->hw_ndx, mdss_res->mdp_irq_mask,
-			mdss_res->mdp_hist_irq_mask);
+	if (!(hw->irq_info->irq_mask & ndx_bit)) {
+		pr_warn("MDSS HW ndx=%d is NOT set\n", hw->hw_ndx);
 	} else {
-		mdss_res->irq_mask &= ~ndx_bit;
-		if (mdss_res->irq_mask == 0) {
-			mdss_res->irq_ena = false;
-			disable_irq_nosync(mdss_res->irq);
+		hw->irq_info->irq_mask &= ~ndx_bit;
+		if (hw->irq_info->irq_mask == 0) {
+			hw->irq_info->irq_ena = false;
+			disable_irq_nosync(hw->irq_info->irq);
 		}
 	}
 	spin_unlock_irqrestore(&mdss_lock, irq_flags);
@@ -304,18 +302,16 @@ void mdss_disable_irq_nosync(struct mdss_hw *hw)
 	ndx_bit = BIT(hw->hw_ndx);
 
 	pr_debug("Disable HW=%d irq ena=%d mask=%x\n", hw->hw_ndx,
-			mdss_res->irq_ena, mdss_res->irq_mask);
+			hw->irq_info->irq_ena, hw->irq_info->irq_mask);
 
 	spin_lock(&mdss_lock);
-	if (!(mdss_res->irq_mask & ndx_bit)) {
-		pr_warn("MDSS HW ndx=%d is NOT set, mask=%x, hist mask=%x\n",
-			hw->hw_ndx, mdss_res->mdp_irq_mask,
-			mdss_res->mdp_hist_irq_mask);
+	if (!(hw->irq_info->irq_mask & ndx_bit)) {
+		pr_warn("MDSS HW ndx=%d is NOT set\n", hw->hw_ndx);
 	} else {
-		mdss_res->irq_mask &= ~ndx_bit;
-		if (mdss_res->irq_mask == 0) {
-			mdss_res->irq_ena = false;
-			disable_irq_nosync(mdss_res->irq);
+		hw->irq_info->irq_mask &= ~ndx_bit;
+		if (hw->irq_info->irq_mask == 0) {
+			hw->irq_info->irq_ena = false;
+			disable_irq_nosync(hw->irq_info->irq);
 		}
 	}
 	spin_unlock(&mdss_lock);
@@ -891,13 +887,13 @@ static int mdss_mdp_irq_clk_setup(struct mdss_data_type *mdata)
 
 	pr_debug("max mdp clk rate=%d\n", mdata->max_mdp_clk_rate);
 
-	ret = devm_request_irq(&mdata->pdev->dev, mdata->irq, mdss_irq_handler,
-			 IRQF_DISABLED,	"MDSS", mdata);
+	ret = devm_request_irq(&mdata->pdev->dev, mdss_mdp_hw.irq_info->irq,
+				mdss_irq_handler, IRQF_DISABLED, "MDSS", mdata);
 	if (ret) {
 		pr_err("mdp request_irq() failed!\n");
 		return ret;
 	}
-	disable_irq(mdata->irq);
+	disable_irq(mdss_mdp_hw.irq_info->irq);
 
 	mdata->fs = devm_regulator_get(&mdata->pdev->dev, "vdd");
 	if (IS_ERR_OR_NULL(mdata->fs)) {
@@ -1207,8 +1203,8 @@ static u32 mdss_mdp_res_init(struct mdss_data_type *mdata)
 
 	mdata->res_init = true;
 	mdata->clk_ena = false;
-	mdata->irq_mask = MDSS_MDP_DEFAULT_INTR_MASK;
-	mdata->irq_ena = false;
+	mdss_mdp_hw.irq_info->irq_mask = MDSS_MDP_DEFAULT_INTR_MASK;
+	mdss_mdp_hw.irq_info->irq_ena = false;
 
 	rc = mdss_mdp_irq_clk_setup(mdata);
 	if (rc)
@@ -1388,7 +1384,13 @@ static int mdss_mdp_probe(struct platform_device *pdev)
 		rc = -ENOMEM;
 		goto probe_done;
 	}
-	mdata->irq = res->start;
+
+	mdss_mdp_hw.irq_info = kzalloc(sizeof(struct irq_info), GFP_KERNEL);
+	if (!mdss_mdp_hw.irq_info) {
+		pr_err("no mem to save irq info: kzalloc fail\n");
+		return -ENOMEM;
+	}
+	mdss_mdp_hw.irq_info->irq = res->start;
 	mdss_mdp_hw.ptr = mdata;
 
 	/*populate hw iomem base info from device tree*/
@@ -2612,6 +2614,12 @@ struct mdss_panel_cfg *mdss_panel_intf_type(int intf_val)
 		return NULL;
 }
 EXPORT_SYMBOL(mdss_panel_intf_type);
+
+struct irq_info *mdss_intr_line()
+{
+	return mdss_mdp_hw.irq_info;
+}
+EXPORT_SYMBOL(mdss_intr_line);
 
 int mdss_panel_get_boot_cfg(void)
 {

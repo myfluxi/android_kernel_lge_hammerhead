@@ -122,10 +122,6 @@ struct mdss_data_type {
 
 	struct mutex reg_lock;
 
-	u32 irq;
-	u32 irq_mask;
-	u32 irq_ena;
-	u32 irq_buzy;
 	u32 has_bwc;
 	u32 has_decimation;
 	u8 has_wfd_blk;
@@ -224,12 +220,21 @@ struct mdss_data_type {
 };
 extern struct mdss_data_type *mdss_res;
 
+struct irq_info {
+	u32 irq;
+	u32 irq_mask;
+	u32 irq_ena;
+	u32 irq_buzy;
+};
+
 struct mdss_hw {
 	u32 hw_ndx;
 	void *ptr;
+	struct irq_info *irq_info;
 	irqreturn_t (*irq_handler)(int irq, void *ptr);
 };
 
+struct irq_info *mdss_intr_line(void);
 int mdss_register_irq(struct mdss_hw *hw);
 void mdss_enable_irq(struct mdss_hw *hw);
 void mdss_disable_irq(struct mdss_hw *hw);
