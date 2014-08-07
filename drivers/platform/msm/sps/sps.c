@@ -2335,6 +2335,32 @@ struct sps_pipe *sps_alloc_endpoint(void)
 }
 EXPORT_SYMBOL(sps_alloc_endpoint);
 
+/*
+ * Process any pending IRQ of a BAM
+ */
+int sps_bam_process_irq(unsigned long dev)
+{
+	struct sps_bam *bam;
+
+	SPS_DBG("sps:%s.", __func__);
+
+	if (!dev) {
+		SPS_ERR("sps:%s:BAM handle is NULL.\n", __func__);
+		return SPS_ERROR;
+	}
+
+	bam = sps_h2bam(dev);
+	if (bam == NULL) {
+		SPS_ERR("sps:%s:BAM is not found by handle.\n", __func__);
+		return SPS_ERROR;
+	}
+
+	sps_bam_check_irq(bam);
+
+	return 0;
+}
+EXPORT_SYMBOL(sps_bam_process_irq);
+
 /**
  * Free client state context
  *
