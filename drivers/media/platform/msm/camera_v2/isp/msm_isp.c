@@ -121,6 +121,7 @@ static int __devinit vfe_probe(struct platform_device *pdev)
 	mutex_init(&vfe_dev->core_mutex);
 	spin_lock_init(&vfe_dev->tasklet_lock);
 	spin_lock_init(&vfe_dev->shared_data_lock);
+	spin_lock_init(&vfe_dev->cfg_flag_lock);
 	media_entity_init(&vfe_dev->subdev.sd.entity, 0, NULL, 0);
 	vfe_dev->subdev.sd.entity.type = MEDIA_ENT_T_V4L2_SUBDEV;
 	vfe_dev->subdev.sd.entity.group_id = MSM_CAMERA_SUBDEV_VFE;
@@ -140,7 +141,6 @@ static int __devinit vfe_probe(struct platform_device *pdev)
 		&vfe_vb2_ops, &vfe_layout);
 	if (rc < 0) {
 		pr_err("%s: Unable to create buffer manager\n", __func__);
-		msm_sd_unregister(&vfe_dev->subdev);
 		kfree(vfe_dev);
 		return -EINVAL;
 	}

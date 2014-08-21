@@ -29,7 +29,7 @@
 #define CYCLES_PER_MICRO_SEC 4915
 #define CCI_MAX_DELAY 10000
 
-#define CCI_TIMEOUT msecs_to_jiffies(100)
+#define CCI_TIMEOUT msecs_to_jiffies(300)
 
 /* TODO move this somewhere else */
 #define MSM_CCI_DRV_NAME "msm_cci"
@@ -71,7 +71,7 @@ static void msm_cci_set_clk_param(struct cci_device *cci_dev)
 			msm_camera_io_w(clk_params->hw_scl_stretch_en << 8 |
 				clk_params->hw_trdhld << 4 | clk_params->hw_tsp,
 				cci_dev->base + CCI_I2C_M0_MISC_CTL_ADDR);
-		} else if (MASTER_1 == count) {
+	    } else if (MASTER_1 == count) {
 			clk_params = &cci_dev->cci_clk_params[count];
 			msm_camera_io_w(clk_params->hw_thigh << 16 |
 				clk_params->hw_tlow,
@@ -160,17 +160,20 @@ static int32_t msm_cci_validate_queue(struct cci_device *cci_dev,
 			__func__, __LINE__);
 		rc = wait_for_completion_interruptible_timeout(&cci_dev->
 			cci_master_info[master].reset_complete, CCI_TIMEOUT);
-		if (rc <= 0) {
+		if (rc == -ERESTARTSYS) {
+			pr_err("%s:%d failed: rc %d", __func__, __LINE__, rc);
+		} else if (rc <= 0) {
 			pr_err("%s: wait_for_completion_interruptible_timeout %d\n",
 				 __func__, __LINE__);
 			if (rc == 0)
 				rc = -ETIMEDOUT;
 			msm_cci_flush_queue(cci_dev, master);
 			return rc;
+		} else {
+			rc = cci_dev->cci_master_info[master].status;
+			if (rc < 0)
+				pr_err("%s failed rc %d\n", __func__, rc);
 		}
-		rc = cci_dev->cci_master_info[master].status;
-		if (rc < 0)
-			pr_err("%s failed rc %d\n", __func__, rc);
 	}
 	return rc;
 }
@@ -181,7 +184,7 @@ static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
 	uint16_t i = 0, j = 0, k = 0, h = 0, len = 0;
 	int32_t rc = 0;
 	uint32_t cmd = 0, delay = 0;
-	uint8_t data[11];
+	uint8_t data[10];
 	uint16_t reg_addr = 0;
 	struct msm_camera_i2c_reg_setting *i2c_msg =
 		&c_ctrl->cfg.cci_i2c_write_cfg;
@@ -405,7 +408,10 @@ static int32_t msm_cci_i2c_read(struct v4l2_subdev *sd,
 		__LINE__);
 	rc = wait_for_completion_interruptible_timeout(&cci_dev->
 		cci_master_info[master].reset_complete, CCI_TIMEOUT);
-	if (rc <= 0) {
+	if (rc == -ERESTARTSYS) {
+		pr_err("%s:%d failed: rc %d", __func__, __LINE__, rc);
+		goto ERROR;
+	} else if (rc <= 0) {
 		pr_err("%s: wait_for_completion_interruptible_timeout %d\n",
 			 __func__, __LINE__);
 		if (rc == 0)
@@ -610,7 +616,9 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 		__func__, __LINE__);
 	rc = wait_for_completion_interruptible_timeout(&cci_dev->
 		cci_master_info[master].reset_complete, CCI_TIMEOUT);
-	if (rc <= 0) {
+	if (rc == -ERESTARTSYS) {
+		pr_err("%s:%d failed: rc %d", __func__, __LINE__, rc);
+	} else if (rc <= 0) {
 		pr_err("%s: wait_for_completion_interruptible_timeout %d\n",
 			 __func__, __LINE__);
 		if (rc == 0)
@@ -618,7 +626,7 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 		msm_cci_flush_queue(cci_dev, master);
 		goto ERROR;
 	} else {
-		rc = cci_dev->cci_master_info[master].status;
+		rc = 0;
 	}
 	CDBG("%s:%d X wait_for_completion_interruptible\n", __func__,
 		__LINE__);
@@ -631,11 +639,7 @@ ERROR:
 static int msm_cci_subdev_g_chip_ident(struct v4l2_subdev *sd,
 			struct v4l2_dbg_chip_ident *chip)
 {
-	if (!chip) {
-		pr_err("%s:%d: NULL pointer supplied for chip ident\n",
-			 __func__, __LINE__);
-		return -EINVAL;
-	}
+	BUG_ON(!chip);
 	chip->ident = V4L2_IDENT_CCI;
 	chip->revision = 0;
 	return 0;
@@ -1007,11 +1011,11 @@ static void msm_cci_init_clk_params(struct cci_device *cci_dev)
 	for (count = 0; count < MASTER_MAX; count++) {
 
 		if (MASTER_0 == count)
-			src_node = of_find_node_by_name(of_node,
-				"qcom,cci-master0");
+			src_node = of_parse_phandle(of_node,
+				"qcom,cci-master0", 0);
 		else if (MASTER_1 == count)
-			src_node = of_find_node_by_name(of_node,
-				"qcom,cci-master1");
+			src_node = of_parse_phandle(of_node,
+				"qcom,cci-master1", 0);
 		else
 			return;
 
@@ -1019,50 +1023,36 @@ static void msm_cci_init_clk_params(struct cci_device *cci_dev)
 		CDBG("%s qcom,hw-thigh %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_thigh = val;
-		else
-			cci_dev->cci_clk_params[count].hw_thigh = 78;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-tlow", &val);
 		CDBG("%s qcom,hw-tlow %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_tlow = val;
-		else
-			cci_dev->cci_clk_params[count].hw_tlow = 114;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-tsu-sto", &val);
 		CDBG("%s qcom,hw-tsu-sto %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_tsu_sto = val;
-		else
-			cci_dev->cci_clk_params[count].hw_tsu_sto = 28;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-tsu-sta", &val);
 		CDBG("%s qcom,hw-tsu-sta %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_tsu_sta = val;
-		else
-			cci_dev->cci_clk_params[count].hw_tsu_sta = 28;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-thd-dat", &val);
 		CDBG("%s qcom,hw-thd-dat %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_thd_dat = val;
-		else
-			cci_dev->cci_clk_params[count].hw_thd_dat = 10;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-thd-sta", &val);
 		CDBG("%s qcom,hwthd-sta %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_thd_sta = val;
-		else
-			cci_dev->cci_clk_params[count].hw_thd_sta = 77;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-tbuf", &val);
 		CDBG("%s qcom,hw-tbuf %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_tbuf = val;
-		else
-			cci_dev->cci_clk_params[count].hw_tbuf = 118;
 
 		rc = of_property_read_u32(src_node,
 			"qcom,hw-scl-stretch-en", &val);
@@ -1070,26 +1060,19 @@ static void msm_cci_init_clk_params(struct cci_device *cci_dev)
 			__func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_scl_stretch_en = val;
-		else
-			cci_dev->cci_clk_params[count].hw_scl_stretch_en = 0;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-trdhld", &val);
 		CDBG("%s qcom,hw-trdhld %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_trdhld = val;
-		else
-			cci_dev->cci_clk_params[count].hw_trdhld = 6;
 
 		rc = of_property_read_u32(src_node, "qcom,hw-tsp", &val);
 		CDBG("%s qcom,hw-tsp %d, rc %d\n", __func__, val, rc);
 		if (!rc)
 			cci_dev->cci_clk_params[count].hw_tsp = val;
-		else
-			cci_dev->cci_clk_params[count].hw_tsp = 1;
-
-		of_node_put(src_node);
-		src_node = NULL;
 	}
+	of_node_put(src_node);
+	src_node = NULL;
 	return;
 }
 
@@ -1102,7 +1085,7 @@ static int __devinit msm_cci_probe(struct platform_device *pdev)
 {
 	struct cci_device *new_cci_dev;
 	int rc = 0;
-	CDBG("%s: pdev %p device id = %d\n", __func__, pdev, pdev->id);
+	pr_err("%s: pdev %p device id = %d\n", __func__, pdev, pdev->id);
 	new_cci_dev = kzalloc(sizeof(struct cci_device), GFP_KERNEL);
 	if (!new_cci_dev) {
 		CDBG("%s: no enough memory\n", __func__);
