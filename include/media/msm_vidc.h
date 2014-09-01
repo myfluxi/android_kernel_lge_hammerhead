@@ -96,6 +96,7 @@ int msm_vidc_smem_get_domain_partition(void *instance,
 		u32 flags, enum hal_buffer buffer_type,
 		int *domain_num, int *partition_num);
 void *msm_vidc_smem_get_client(void *instance);
+int msm_vidc_instance_open(void);
 #endif
 
 struct msm_vidc_extradata_header {

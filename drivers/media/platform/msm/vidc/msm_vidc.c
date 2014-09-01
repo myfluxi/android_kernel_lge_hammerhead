@@ -25,6 +25,13 @@
 
 #define MAX_EVENTS 30
 
+static int open_video_instance = 0;
+
+int msm_vidc_instance_open(void)
+{
+	return open_video_instance;
+}
+
 static int get_poll_flags(void *instance)
 {
 	struct msm_vidc_inst *inst = instance;
@@ -1218,6 +1225,7 @@ void *msm_vidc_open(int core_id, int session_type)
 
 	pr_info(VIDC_DBG_TAG "Opening video instance: %p, %d\n",
 		VIDC_INFO, inst, session_type);
+	open_video_instance = 1;
 	mutex_init(&inst->sync_lock);
 	mutex_init(&inst->bufq[CAPTURE_PORT].lock);
 	mutex_init(&inst->bufq[OUTPUT_PORT].lock);
@@ -1401,6 +1409,8 @@ int msm_vidc_close(void *instance)
 	msm_smem_delete_client(inst->mem_client);
 	pr_info(VIDC_DBG_TAG "Closed video instance: %p\n", VIDC_INFO, inst);
 	kfree(inst);
+
+	open_video_instance = 0;
 
 	return 0;
 }
