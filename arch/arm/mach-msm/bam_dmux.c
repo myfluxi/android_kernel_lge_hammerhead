@@ -494,8 +494,10 @@ static void bam_mux_process_data(struct sk_buff *rx_skb)
 	unsigned long event_data;
 	void (*notify)(void *, int, unsigned long);
 	void *priv;
+	uint8_t ch_id;
 
 	rx_hdr = (struct bam_mux_hdr *)rx_skb->data;
+	ch_id = rx_hdr->ch_id;
 
 	rx_skb->data = (unsigned char *)(rx_hdr + 1);
 	skb_set_tail_pointer(rx_skb, rx_hdr->pkt_len);
@@ -506,12 +508,12 @@ static void bam_mux_process_data(struct sk_buff *rx_skb)
 	notify = NULL;
 	priv = NULL;
 
-	spin_lock_irqsave(&bam_ch[rx_hdr->ch_id].lock, flags);
-	if (bam_ch[rx_hdr->ch_id].notify) {
-		notify = bam_ch[rx_hdr->ch_id].notify;
-		priv = bam_ch[rx_hdr->ch_id].priv;
+	spin_lock_irqsave(&bam_ch[ch_id].lock, flags);
+	if (bam_ch[ch_id].notify) {
+		notify = bam_ch[ch_id].notify;
+		priv = bam_ch[ch_id].priv;
 	}
-	spin_unlock_irqrestore(&bam_ch[rx_hdr->ch_id].lock, flags);
+	spin_unlock_irqrestore(&bam_ch[ch_id].lock, flags);
 	if (notify)
 		notify(priv, BAM_DMUX_RECEIVE, event_data);
 	else
