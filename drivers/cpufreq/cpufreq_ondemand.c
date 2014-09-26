@@ -1052,6 +1052,9 @@ static int dbs_migration_notify(struct notifier_block *nb,
 	struct cpu_dbs_info_s *target_dbs_info =
 		&per_cpu(od_cpu_dbs_info, target_cpu);
 
+	if (target_dbs_info->sync_thread == current)
+		return NOTIFY_OK;
+
 	atomic_set(&target_dbs_info->src_sync_cpu, (int)arg);
 	wake_up(&target_dbs_info->sync_wq);
 
