@@ -2151,7 +2151,7 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 		unknown_pid = false;
 
 		pr_debug("found process %s pid=%d mfd->ref=%d pinfo->ref=%d\n",
-			task->comm, mfd->ref_cnt, pinfo->pid, pinfo->ref_cnt);
+			task->comm, pinfo->pid, mfd->ref_cnt, pinfo->ref_cnt);
 
 		do {
 			if (mfd->ref_cnt < pinfo->ref_cnt)
@@ -2174,17 +2174,7 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 			break;
 	}
 
-	if (release_needed) {
-		pr_debug("known process %s pid=%d mfd->ref=%d\n",
-			task->comm, pid, mfd->ref_cnt);
-
-		if (mfd->mdp.release_fnc) {
-			ret = mfd->mdp.release_fnc(mfd, false);
-			if (ret)
-				pr_err("error releasing fb%d pid=%d\n",
-					mfd->index, pid);
-		}
-	} else if (unknown_pid || release_all) {
+	if (unknown_pid) {
 		pr_warn("unknown process %s pid=%d mfd->ref=%d\n",
 			task->comm, pid, mfd->ref_cnt);
 
@@ -2199,7 +2189,7 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 		}
 	}
 
-	if (!mfd->ref_cnt) {
+	if (!mfd->ref_cnt || release_all) {
 		if (mfd->mdp.release_fnc) {
 			ret = mfd->mdp.release_fnc(mfd, true);
 			if (ret)
@@ -2226,6 +2216,17 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 			mdss_fb_free_fb_ion_memory(mfd);
 
 		atomic_set(&mfd->ioctl_ref_cnt, 0);
+	} else if (release_needed) {
+		pr_debug("current process=%s pid=%d known pid=%d mfd->ref=%d\n",
+			task->comm, current->tgid, pid, mfd->ref_cnt);
+
+		if (mfd->mdp.release_fnc) {
+			ret = mfd->mdp.release_fnc(mfd, false);
+
+			/* display commit is needed to release resources */
+			if (ret)
+				mdss_fb_pan_display(&mfd->fbi->var, mfd->fbi);
+		}
 	}
 
 	return ret;
