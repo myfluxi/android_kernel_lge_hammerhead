@@ -135,6 +135,7 @@ struct bq24192_chip {
 	int  max_input_i_ma;
 };
 
+static bool bq24192_is_chg_done(struct bq24192_chip *chip);
 static struct bq24192_chip *the_chip;
 static int input_limit_idx = 0;
 
@@ -752,7 +753,8 @@ static void bq24192_irq_worker(struct work_struct *work)
 	}
 
 irq_worker_exit:
-	wake_lock_timeout(&chip->irq_wake_lock, 2*HZ);
+	if (!wlc_pwr || bq24192_is_chg_done(chip))
+		wake_lock_timeout(&chip->irq_wake_lock, 2*HZ);
 }
 
 static void bq24192_extra_chg_work(struct work_struct *work)
@@ -1699,7 +1701,7 @@ static int bq24192_probe(struct i2c_client *client,
 			goto err_otg_en_gpio;
 		}
 		gpio_set_value(chip->otg_en_gpio, 1);
-		msleep(10);
+		usleep(10 * 1000);
 		gpio_set_value(chip->otg_en_gpio, 0);
 	}
 
