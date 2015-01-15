@@ -3,7 +3,7 @@
  * MSM architecture cpufreq driver
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2007-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2014, The Linux Foundation. All rights reserved.
  * Author: Mike A. Chan <mikechan@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -17,7 +17,6 @@
  *
  */
 
-#include <linux/earlysuspend.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/cpufreq.h>
@@ -31,7 +30,6 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <trace/events/power.h>
-#include <mach/socinfo.h>
 
 static DEFINE_MUTEX(l2bw_lock);
 
@@ -224,16 +222,20 @@ static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
 		if (rc < 0)
 			return NOTIFY_BAD;
 		rc = clk_prepare(cpu_clk[cpu]);
-		if (rc < 0)
+		if (rc < 0) {
+			clk_unprepare(l2_clk);
 			return NOTIFY_BAD;
+		}
 		break;
 	case CPU_STARTING:
 		rc = clk_enable(l2_clk);
 		if (rc < 0)
 			return NOTIFY_BAD;
 		rc = clk_enable(cpu_clk[cpu]);
-		if (rc < 0)
+		if (rc) {
+			clk_disable(l2_clk);
 			return NOTIFY_BAD;
+		}
 		break;
 	default:
 		break;
@@ -246,24 +248,20 @@ static struct notifier_block __refdata msm_cpufreq_cpu_notifier = {
 	.notifier_call = msm_cpufreq_cpu_callback,
 };
 
-/*
- * Define suspend/resume for cpufreq_driver. Kernel will call
- * these during suspend/resume with interrupts disabled. This
- * helps the suspend/resume variable get's updated before cpufreq
- * governor tries to change the frequency after coming out of suspend.
- */
-static int msm_cpufreq_suspend(struct cpufreq_policy *policy)
+static int msm_cpufreq_suspend(void)
 {
 	int cpu;
 
 	for_each_possible_cpu(cpu) {
+		mutex_lock(&per_cpu(cpufreq_suspend, cpu).suspend_mutex);
 		per_cpu(cpufreq_suspend, cpu).device_suspended = 1;
+		mutex_unlock(&per_cpu(cpufreq_suspend, cpu).suspend_mutex);
 	}
 
-	return 0;
+	return NOTIFY_DONE;
 }
 
-static int msm_cpufreq_resume(struct cpufreq_policy *policy)
+static int msm_cpufreq_resume(void)
 {
 	int cpu;
 
@@ -271,8 +269,27 @@ static int msm_cpufreq_resume(struct cpufreq_policy *policy)
 		per_cpu(cpufreq_suspend, cpu).device_suspended = 0;
 	}
 
-	return 0;
+	return NOTIFY_DONE;
 }
+
+static int msm_cpufreq_pm_event(struct notifier_block *this,
+				unsigned long event, void *ptr)
+{
+	switch (event) {
+	case PM_POST_HIBERNATION:
+	case PM_POST_SUSPEND:
+		return msm_cpufreq_resume();
+	case PM_HIBERNATION_PREPARE:
+	case PM_SUSPEND_PREPARE:
+		return msm_cpufreq_suspend();
+	default:
+		return NOTIFY_DONE;
+	}
+}
+
+static struct notifier_block msm_cpufreq_pm_notifier = {
+	.notifier_call = msm_cpufreq_pm_event,
+};
 
 static struct freq_attr *msm_freq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
@@ -286,8 +303,6 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.verify		= msm_cpufreq_verify,
 	.target		= msm_cpufreq_target,
 	.get		= msm_cpufreq_get_freq,
-	.suspend	= msm_cpufreq_suspend,
-	.resume		= msm_cpufreq_resume,
 	.name		= "msm",
 	.attr		= msm_freq_attr,
 };
@@ -460,6 +475,7 @@ static int __init msm_cpufreq_register(void)
 		return rc;
 	}
 
+	register_pm_notifier(&msm_cpufreq_pm_notifier);
 	return cpufreq_register_driver(&msm_cpufreq_driver);
 }
 
