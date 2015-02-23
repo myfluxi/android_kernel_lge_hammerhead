@@ -25,7 +25,8 @@
 #include <linux/posix-timers.h>
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
-#include "lpm-levels.h"
+
+#include <mach/cpuidle.h>
 
 #define ALARM_DELTA 120
 
