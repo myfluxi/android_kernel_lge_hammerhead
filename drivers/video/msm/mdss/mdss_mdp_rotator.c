@@ -273,6 +273,10 @@ static int mdss_mdp_rotator_queue_sub(struct mdss_mdp_rotator_session *rot,
 		ret = -EINVAL;
 		goto error;
 	} else {
+		if (!rot_ctl->mixer_left) {
+			pr_debug("Mixer left is null\n");
+			return -EINVAL;
+		}
 		rot->pipe->mixer = rot_ctl->mixer_left;
 	}
 
