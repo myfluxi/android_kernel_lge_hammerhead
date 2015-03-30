@@ -88,7 +88,6 @@ struct msm_mdp_interface mdp5 = {
 
 static DEFINE_SPINLOCK(mdp_lock);
 static DEFINE_MUTEX(mdp_clk_lock);
-static DEFINE_MUTEX(bus_bw_lock);
 static DEFINE_MUTEX(mdp_iommu_lock);
 static DEFINE_MUTEX(mdp_fs_idle_pc_lock);
 
@@ -331,6 +330,11 @@ static int mdss_mdp_bus_scale_register(struct mdss_data_type *mdata)
 		pr_debug("register bus_hdl=%x\n", mdata->bus_hdl);
 	}
 
+	/*
+	 * Following call will not result in actual vote rather update the
+	 * current index and ab/ib value. When continuous splash is enabled,
+	 * actual vote will happen when splash handoff is done.
+	 */
 	return mdss_bus_scale_set_quota(MDSS_HW_MDP, AB_QUOTA, IB_QUOTA);
 }
 
@@ -394,8 +398,11 @@ int mdss_mdp_bus_scale_set_quota(u64 ab_quota, u64 ib_quota)
 	}
 	mdss_res->curr_bw_uc_idx = new_uc_idx;
 
-	return msm_bus_scale_client_update_request(mdss_res->bus_hdl,
-		new_uc_idx);
+	if ((mdss_res->bus_bw_cnt == 0) && mdss_res->curr_bw_uc_idx)
+		return 0;
+	else /* vote BW if bus_bw_cnt > 0 or uc_idx is zero */
+		return msm_bus_scale_client_update_request(mdss_res->bus_hdl,
+			new_uc_idx);
 }
 
 int mdss_bus_scale_set_quota(int client, u64 ab_quota, u64 ib_quota)
@@ -405,7 +412,7 @@ int mdss_bus_scale_set_quota(int client, u64 ab_quota, u64 ib_quota)
 	u64 total_ab = 0;
 	u64 total_ib = 0;
 
-	mutex_lock(&bus_bw_lock);
+	mutex_lock(&mdss_res->bus_bw_lock);
 
 	mdss_res->ab[client] = ab_quota;
 	mdss_res->ib[client] = ib_quota;
@@ -416,7 +423,7 @@ int mdss_bus_scale_set_quota(int client, u64 ab_quota, u64 ib_quota)
 
 	rc = mdss_mdp_bus_scale_set_quota(total_ab, total_ib);
 
-	mutex_unlock(&bus_bw_lock);
+	mutex_unlock(&mdss_res->bus_bw_lock);
 
 	return rc;
 }
@@ -722,18 +729,17 @@ end:
 void mdss_bus_bandwidth_ctrl(int enable)
 {
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
-	static int bus_bw_cnt;
 	int changed = 0;
 
-	mutex_lock(&bus_bw_lock);
+	mutex_lock(&mdata->bus_bw_lock);
 	if (enable) {
-		if (bus_bw_cnt == 0)
+		if (mdata->bus_bw_cnt == 0)
 			changed++;
-		bus_bw_cnt++;
+		mdata->bus_bw_cnt++;
 	} else {
-		if (bus_bw_cnt) {
-			bus_bw_cnt--;
-			if (bus_bw_cnt == 0)
+		if (mdata->bus_bw_cnt) {
+			mdata->bus_bw_cnt--;
+			if (mdata->bus_bw_cnt == 0)
 				changed++;
 		} else {
 			pr_err("Can not be turned off\n");
@@ -741,7 +747,7 @@ void mdss_bus_bandwidth_ctrl(int enable)
 	}
 
 	pr_debug("bw_cnt=%d changed=%d enable=%d\n",
-			bus_bw_cnt, changed, enable);
+		mdata->bus_bw_cnt, changed, enable);
 
 	if (changed) {
 		if (!enable) {
@@ -756,7 +762,7 @@ void mdss_bus_bandwidth_ctrl(int enable)
 		}
 	}
 
-	mutex_unlock(&bus_bw_lock);
+	mutex_unlock(&mdata->bus_bw_lock);
 }
 EXPORT_SYMBOL(mdss_bus_bandwidth_ctrl);
 
@@ -1245,8 +1251,10 @@ void mdss_mdp_footswitch_ctrl_splash(int on)
 			regulator_enable(mdata->fs);
 			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 			mdss_hw_init(mdata);
+			mdss_bus_bandwidth_ctrl(true);
 		} else {
 			pr_debug("Disable MDP FS for splash.\n");
+			mdss_bus_bandwidth_ctrl(false);
 			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 			regulator_disable(mdata->fs);
 			mdata->handoff_pending = false;
@@ -1338,6 +1346,7 @@ static int mdss_mdp_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, mdata);
 	mdss_res = mdata;
 	mutex_init(&mdata->reg_lock);
+	mutex_init(&mdata->bus_bw_lock);
 	atomic_set(&mdata->sd_client_count, 0);
 	atomic_set(&mdata->active_intf_cnt, 0);
 

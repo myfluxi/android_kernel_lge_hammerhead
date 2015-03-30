@@ -159,6 +159,8 @@ struct mdss_data_type {
 	u32 curr_bw_uc_idx;
 	u32 bus_hdl;
 	struct msm_bus_scale_pdata *bus_scale_table;
+	u32 bus_bw_cnt;
+	struct mutex bus_bw_lock;
 
 	struct mdss_fudge_factor ab_factor;
 	struct mdss_fudge_factor ib_factor;
