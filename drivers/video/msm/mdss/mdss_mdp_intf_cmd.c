@@ -571,6 +571,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 					rc, ctl->num);
 			MDSS_XLOG_TOUT_HANDLER("mdp", "dsi0", "dsi1",
 					"edp", "hdmi", "panic");
+			mdss_mdp_ctl_reset(ctx->ctl);
 		}
 		ctx->pp_timeout_report_cnt++;
 		rc = -EPERM;

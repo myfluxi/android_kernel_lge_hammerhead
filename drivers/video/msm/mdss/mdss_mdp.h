@@ -242,6 +242,8 @@ struct mdss_mdp_mixer {
 
 	struct mdss_mdp_ctl *ctl;
 	struct mdss_mdp_pipe *stage_pipe[MDSS_MDP_MAX_STAGE];
+	u32 next_pipe_map;
+	u32 previous_pipe_map;
 };
 
 struct mdss_mdp_format_params {
