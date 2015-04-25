@@ -164,11 +164,11 @@
 			};
 		};
 
-		qcom,panel-supply-entries {
+		qcom,phy-supply-entries {
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			qcom,panel-supply-entry@0 {
+			qcom,phy-supply-entry@0 {
 				reg = <0>;
 				qcom,supply-name = "vdd";
 				qcom,supply-min-voltage = <2800000>;
