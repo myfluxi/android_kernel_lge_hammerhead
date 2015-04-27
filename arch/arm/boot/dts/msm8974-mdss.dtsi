@@ -187,7 +187,7 @@
 				qcom,supply-enable-load = <100000>;
 				qcom,supply-disable-load = <100>;
 				qcom,supply-ulp-load = <100>;
-				qcom,supply-post-on-sleep = <20>;
+				qcom,supply-post-on-sleep = <5>;
 			};
 
 			qcom,panel-supply-entry@1 {
@@ -198,7 +198,7 @@
 				qcom,supply-enable-load = <100000>;
 				qcom,supply-disable-load = <100>;
 				qcom,supply-ulp-load = <100>;
-				qcom,supply-post-on-sleep = <20>;
+				qcom,supply-post-on-sleep = <5>;
 			};
 		};
 	};
@@ -274,7 +274,7 @@
 				qcom,supply-enable-load = <100000>;
 				qcom,supply-disable-load = <100>;
 				qcom,supply-ulp-load = <100>;
-				qcom,supply-post-on-sleep = <20>;
+				qcom,supply-post-on-sleep = <5>;
 			};
 
 			qcom,panel-supply-entry@1 {
@@ -285,7 +285,7 @@
 				qcom,supply-enable-load = <100000>;
 				qcom,supply-disable-load = <100>;
 				qcom,supply-ulp-load = <100>;
-				qcom,supply-post-on-sleep = <20>;
+				qcom,supply-post-on-sleep = <5>;
 			};
 		};
 	};
