@@ -700,6 +700,19 @@ static struct attribute *default_attrs[] = {
 struct kobject *cpufreq_global_kobject;
 EXPORT_SYMBOL(cpufreq_global_kobject);
 
+static bool cpu_frozen;
+static int cpufreq_uevent_filter(struct kset *kset, struct kobject *kobj)
+{
+	if (cpu_frozen)
+		return 0;
+	else
+		return 1;
+}
+
+static const struct kset_uevent_ops cpufreq_uevent_ops = {
+	.filter = cpufreq_uevent_filter,
+};
+
 #define to_policy(k) container_of(k, struct cpufreq_policy, kobj)
 #define to_attr(a) container_of(a, struct freq_attr, attr)
 
@@ -1914,6 +1927,11 @@ static int __cpuinit cpufreq_cpu_callback(struct notifier_block *nfb,
 	unsigned int cpu = (unsigned long)hcpu;
 	struct device *dev;
 
+	if (action & CPU_TASKS_FROZEN)
+		cpu_frozen = true;
+	else
+		cpu_frozen = false;
+
 	dev = get_cpu_device(cpu);
 	if (dev) {
 		switch (action) {
@@ -2066,7 +2084,7 @@ static int __init cpufreq_core_init(void)
 	BUG_ON(!cpufreq_global_kobject);
 
 	/* create cpufreq kset */
-	cpufreq_kset = kset_create_and_add("kset", NULL, cpufreq_global_kobject);
+	cpufreq_kset = kset_create_and_add("kset", &cpufreq_uevent_ops, cpufreq_global_kobject);
 	BUG_ON(!cpufreq_kset);
 	cpufreq_global_kobject->kset = cpufreq_kset;
 
