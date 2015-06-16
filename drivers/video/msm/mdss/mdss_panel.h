@@ -249,6 +249,7 @@ struct mipi_panel_info {
 
 	char lp11_init;
 	u32  init_delay;
+	u32  reset_delay;
 };
 
 struct edp_panel_info {
