@@ -369,6 +369,10 @@ struct mdss_dsi_ctrl_pdata {
 
 	int horizontal_idle_cnt;
 	struct panel_horizontal_idle *line_idle;
+
+	/* Shared mutex for pm_qos ref count */
+	struct mutex pm_qos_lock;
+	u32 pm_qos_req_cnt;
 };
 
 struct dsi_status_data {
