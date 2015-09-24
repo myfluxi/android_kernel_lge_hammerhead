@@ -770,6 +770,7 @@ void mdss_mdp_clk_ctrl(int enable)
 {
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
 	static int mdp_clk_cnt;
+	unsigned long flags;
 	int changed = 0;
 
 	mutex_lock(&mdp_clk_lock);
@@ -795,7 +796,10 @@ void mdss_mdp_clk_ctrl(int enable)
 		if (enable)
 			pm_runtime_get_sync(&mdata->pdev->dev);
 
+		spin_lock_irqsave(&mdp_lock, flags);
 		mdata->clk_ena = enable;
+		spin_unlock_irqrestore(&mdp_lock, flags);
+
 		mdss_mdp_clk_update(MDSS_CLK_AHB, enable);
 		mdss_mdp_clk_update(MDSS_CLK_AXI, enable);
 		mdss_mdp_clk_update(MDSS_CLK_MDP_CORE, enable);
