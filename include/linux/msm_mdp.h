@@ -1062,8 +1062,7 @@ struct mdp_display_commit {
 	uint32_t flags;
 	uint32_t wait_for_finish;
 	struct fb_var_screeninfo var;
-	struct mdp_rect l_roi;
-	struct mdp_rect r_roi;
+	struct mdp_rect roi;
 };
 
 /**

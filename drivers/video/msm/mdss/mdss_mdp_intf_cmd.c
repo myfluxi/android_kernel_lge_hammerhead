@@ -420,8 +420,7 @@ static void clk_ctrl_work(struct work_struct *work)
 static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 		struct mdss_mdp_vsync_handler *handle)
 {
-	struct mdss_mdp_ctl *sctl = NULL;
-	struct mdss_mdp_cmd_ctx *ctx, *sctx = NULL;
+	struct mdss_mdp_cmd_ctx *ctx;
 	unsigned long flags;
 	bool enable_rdptr = false;
 
@@ -433,9 +432,6 @@ static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 
 	MDSS_XLOG(ctl->num, ctx->koff_cnt, ctx->clk_enabled,
 					ctx->rdptr_enabled);
-	sctl = mdss_mdp_get_split_ctl(ctl);
-	if (sctl)
-		sctx = (struct mdss_mdp_cmd_ctx *) sctl->priv_data;
 
 	spin_lock_irqsave(&ctx->clk_lock, flags);
 	if (!handle->enabled) {
@@ -443,19 +439,13 @@ static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 		list_add(&handle->list, &ctx->vsync_handlers);
 
 		enable_rdptr = !handle->cmd_post_flush;
-		if (enable_rdptr) {
+		if (enable_rdptr)
 			ctx->vsync_enabled++;
-			if (sctx)
-				sctx->vsync_enabled++;
-		}
 	}
 	spin_unlock_irqrestore(&ctx->clk_lock, flags);
 
-	if (enable_rdptr) {
+	if (enable_rdptr)
 		mdss_mdp_cmd_clk_on(ctx);
-		if (sctx)
-			mdss_mdp_cmd_clk_on(sctx);
-	}
 
 	return 0;
 }
@@ -463,8 +453,7 @@ static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 static int mdss_mdp_cmd_remove_vsync_handler(struct mdss_mdp_ctl *ctl,
 		struct mdss_mdp_vsync_handler *handle)
 {
-	struct mdss_mdp_ctl *sctl;
-	struct mdss_mdp_cmd_ctx *ctx, *sctx = NULL;
+	struct mdss_mdp_cmd_ctx *ctx;
 	unsigned long flags;
 
 	ctx = (struct mdss_mdp_cmd_ctx *) ctl->priv_data;
@@ -475,9 +464,6 @@ static int mdss_mdp_cmd_remove_vsync_handler(struct mdss_mdp_ctl *ctl,
 
 	MDSS_XLOG(ctl->num, ctx->koff_cnt, ctx->clk_enabled,
 				ctx->rdptr_enabled, 0x88888);
-	sctl = mdss_mdp_get_split_ctl(ctl);
-	if (sctl)
-		sctx = (struct mdss_mdp_cmd_ctx *) sctl->priv_data;
 
 	spin_lock_irqsave(&ctx->clk_lock, flags);
 	if (handle->enabled) {
@@ -485,11 +471,8 @@ static int mdss_mdp_cmd_remove_vsync_handler(struct mdss_mdp_ctl *ctl,
 		list_del_init(&handle->list);
 
 		if (!handle->cmd_post_flush) {
-			if (ctx->vsync_enabled) {
+			if (ctx->vsync_enabled)
 				ctx->vsync_enabled--;
-				if (sctx)
-					sctx->vsync_enabled--;
-			}
 			else
 				WARN(1, "unbalanced vsync disable");
 		}
@@ -628,41 +611,17 @@ static void mdss_mdp_cmd_set_sync_ctx(
 
 static int mdss_mdp_cmd_set_partial_roi(struct mdss_mdp_ctl *ctl)
 {
-	struct mdss_mdp_ctl *sctl = NULL;
-	struct mdss_rect *roi;
 	int rc = 0;
+	if (ctl->roi.w && ctl->roi.h && ctl->roi_changed &&
+			ctl->panel_data->panel_info.partial_update_enabled) {
+		ctl->panel_data->panel_info.roi_x = ctl->roi.x;
+		ctl->panel_data->panel_info.roi_y = ctl->roi.y;
+		ctl->panel_data->panel_info.roi_w = ctl->roi.w;
+		ctl->panel_data->panel_info.roi_h = ctl->roi.h;
 
-	if (!ctl->panel_data->panel_info.partial_update_enabled)
-		return rc;
-
-	sctl = mdss_mdp_get_split_ctl(ctl);
-
-	/* save roi to pinfo which used by dsi controller */
-	roi = &ctl->panel_data->panel_info.roi;
-	*roi = ctl->roi;
-
-	if (sctl) {
-		/* save roi to pinfo whcih used by dsi controller */
-		roi = &sctl->panel_data->panel_info.roi;
-		*roi = sctl->roi;
+		rc = mdss_mdp_ctl_intf_event(ctl,
+				MDSS_EVENT_ENABLE_PARTIAL_UPDATE, NULL);
 	}
-
-	/* set panel col and page addr */
-	rc = mdss_mdp_ctl_intf_event(ctl,
-			MDSS_EVENT_ENABLE_PARTIAL_ROI, NULL);
-	return rc;
-}
-
-static int mdss_mdp_cmd_set_stream_size(struct mdss_mdp_ctl *ctl)
-{
-	int rc = 0;
-
-	if (!ctl->panel_data->panel_info.partial_update_enabled)
-		return rc;
-
-	/* set dsi controller stream size */
-	rc = mdss_mdp_ctl_intf_event(ctl,
-			MDSS_EVENT_DSI_STREAM_SIZE, NULL);
 	return rc;
 }
 
@@ -706,7 +665,6 @@ static int mdss_mdp_cmd_panel_on(struct mdss_mdp_ctl *ctl,
 
 int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 {
-	struct mdss_mdp_ctl *sctl;
 	struct mdss_mdp_cmd_ctx *ctx, *sctx = NULL;
 
 	ctx = (struct mdss_mdp_cmd_ctx *) ctl->priv_data;
@@ -719,10 +677,6 @@ int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 		pr_err("ctx=%d stopped already\n", ctx->pp_num);
 		return -EPERM;
 	}
-
-	sctl = mdss_mdp_get_split_ctl(ctl);
-	if (sctl)
-		sctx = (struct mdss_mdp_cmd_ctx *) sctl->priv_data;
 
 	mdss_mdp_ctl_perf_set_transaction_status(ctl,
 		PERF_HW_MDP_STATE, PERF_STATUS_BUSY);
@@ -753,7 +707,6 @@ int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 	 */
 	mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_DSI_CMDLIST_KOFF, NULL);
 
-	mdss_mdp_cmd_set_stream_size(ctl);
 	mdss_mdp_cmd_set_sync_ctx(ctl, NULL);
 
 	mdss_mdp_irq_enable(MDSS_MDP_IRQ_PING_PONG_COMP, ctx->pp_num);
