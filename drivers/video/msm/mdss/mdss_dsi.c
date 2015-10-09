@@ -39,14 +39,24 @@ static struct pm_qos_request mdss_dsi_pm_qos_request;
 
 static void mdss_dsi_pm_qos_add_request(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
+	struct irq_info *irq_info;
+
 	if (!ctrl_pdata)
+		return;
+
+	irq_info = ctrl_pdata->dsi_hw->irq_info;
+
+	if (!irq_info)
 		return;
 
 	mutex_lock(&ctrl_pdata->pm_qos_lock);
 	if (!ctrl_pdata->pm_qos_req_cnt) {
-		pr_debug("%s: add request", __func__);
+		pr_debug("%s: add request irq\n", __func__);
+
+		mdss_dsi_pm_qos_request.type = PM_QOS_REQ_AFFINE_IRQ;
+		mdss_dsi_pm_qos_request.irq = irq_info->irq;
 		pm_qos_add_request(&mdss_dsi_pm_qos_request,
-			PM_QOS_CPU_DMA_LATENCY,	PM_QOS_DEFAULT_VALUE);
+			PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
 	}
 	ctrl_pdata->pm_qos_req_cnt++;
 	mutex_unlock(&ctrl_pdata->pm_qos_lock);
