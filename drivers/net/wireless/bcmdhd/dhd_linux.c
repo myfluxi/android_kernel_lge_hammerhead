@@ -6535,6 +6535,10 @@ int dhd_os_check_wakelock(void *dhdp)
 	if (dhd && (wake_lock_active(&dhd->wl_wifi) ||
 		(wake_lock_active(&dhd->wl_wdwake))))
 		return 1;
+#ifdef CONFIG_PARTIALRESUME
+	if (dhd && (dhd->wakelock_wd_counter > 0))
+		return 1;
+#endif
 #elif 1 && (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36))
 	if (dhd && (dhd->wakelock_counter > 0) && pm_dev)
 		return 1;
