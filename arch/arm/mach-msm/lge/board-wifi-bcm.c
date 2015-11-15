@@ -702,7 +702,7 @@ static bool bcm_wifi_process_partial_resume(int action)
 
 	if (action == WIFI_PR_WAIT_FOR_READY)
 		timeout = wait_for_completion_timeout(&bcm_pk_comp,
-						      msecs_to_jiffies(50));
+						      msecs_to_jiffies(100));
 
 	spin_lock(&bcm_lock);
 	switch (action) {
