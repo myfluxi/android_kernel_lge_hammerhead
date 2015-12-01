@@ -242,6 +242,15 @@ static ssize_t mdss_mdp_show_blank_event(struct device *dev,
 	return ret;
 }
 
+static void __mdss_fb_cooloff_work(struct work_struct *work)
+{
+	struct delayed_work *dw = to_delayed_work(work);
+	struct msm_fb_data_type *mfd = container_of(dw, struct msm_fb_data_type,
+		cooloff_work);
+
+	mfd->cooloff = 0;
+}
+
 static void __mdss_fb_idle_notify_work(struct work_struct *work)
 {
 	struct delayed_work *dw = to_delayed_work(work);
@@ -667,6 +676,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		mfd->mdp.splash_init_fnc(mfd);
 
 	INIT_DELAYED_WORK(&mfd->idle_notify_work, __mdss_fb_idle_notify_work);
+	INIT_DELAYED_WORK(&mfd->cooloff_work, __mdss_fb_cooloff_work);
 
 	return rc;
 }
@@ -1231,10 +1241,15 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 		 * then first unblank the panel before entering low power mode
 		 */
 		if (mdss_fb_is_power_off(mfd) && mfd->mdp.on_fnc) {
-			pr_debug("off --> lp. switch to on first\n");
-			ret = mdss_fb_blank_unblank(mfd);
-			if (ret)
-				break;
+			if (mfd->cooloff) {
+				mfd->cooloff = 0;
+				mfd->panel_power_state = MDSS_PANEL_POWER_OFF;
+			} else {
+				pr_debug("off --> lp. switch to on first\n");
+				ret = mdss_fb_blank_unblank(mfd);
+				if (ret)
+					break;
+			}
 		}
 
 		ret = mdss_fb_blank_blank(mfd, req_power_state);
@@ -1245,6 +1260,10 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 		req_power_state = MDSS_PANEL_POWER_OFF;
 		pr_debug("blank powerdown called\n");
 		ret = mdss_fb_blank_blank(mfd, req_power_state);
+
+		mfd->cooloff = 1;
+		schedule_delayed_work(&mfd->cooloff_work,
+					msecs_to_jiffies(750));
 		break;
 	}
 
