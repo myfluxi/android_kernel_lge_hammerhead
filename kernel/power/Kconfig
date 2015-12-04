@@ -292,7 +292,7 @@ config DEDUCE_WAKEUP_REASONS
 
 config PARTIALRESUME
 	bool "Partial-resume framework"
-	select DEDUCE_WAKEUP_REASONS
+	# select DEDUCE_WAKEUP_REASONS
 	---help---
 	  Provides hooks for drivers to register partial-resume handlers.
 	  Similar to suspend_again support already in kernel, except that it
