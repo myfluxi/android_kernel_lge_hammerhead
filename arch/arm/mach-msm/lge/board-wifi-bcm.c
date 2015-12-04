@@ -713,6 +713,8 @@ static bool bcm_wifi_process_partial_resume(int action)
 			timeout = wait_for_completion_timeout(&bcm_wd_comp,
 							msecs_to_jiffies(100));
 			spin_lock(&bcm_lock);
+			pr_info("%s: WIFI_PR_WAIT_FOR_READY timeout %d\n",
+				__func__, timeout);
 			suspend = (timeout != 0);
 		}
 		bcm_suspend = PR_INIT_STATE;
@@ -734,9 +736,11 @@ static bool bcm_wifi_process_partial_resume(int action)
 		bcm_suspend = PR_INIT_STATE;
 		break;
 	case WIFI_PR_WD_INIT:
+		pr_info("%s: WIFI_PR_WD_INIT\n", __func__);
 		INIT_COMPLETION(bcm_wd_comp);
 		break;
 	case WIFI_PR_WD_COMPLETE:
+		pr_info("%s: WIFI_PR_WD_COMPLETE\n", __func__);
 		complete(&bcm_wd_comp);
 		break;
 	}
