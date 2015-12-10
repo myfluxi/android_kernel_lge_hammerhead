@@ -271,6 +271,7 @@ static LIST_HEAD(bam_other_notify_funcs);
 static DEFINE_MUTEX(smsm_cb_lock);
 static DEFINE_MUTEX(delayed_ul_vote_lock);
 static int need_delayed_ul_vote;
+static int in_ssr;
 static int power_management_only_mode;
 static int ssr_skipped_disconnect;
 static struct completion shutdown_completion;
@@ -1813,6 +1814,7 @@ static void ul_wakeup(void)
 static void reconnect_to_bam(void)
 {
 	int i;
+	in_ssr = 0;
 
 	if (in_global_reset) {
 		BAM_DMUX_LOG("%s: skipping due to SSR\n", __func__);
@@ -1899,7 +1901,7 @@ static void disconnect_to_bam(void)
 
 	/* documentation/assumptions found in restart_notifier_cb */
 	if (!power_management_only_mode) {
-		if (likely(!in_global_reset)) {
+		if (likely(!in_ssr)) {
 			BAM_DMUX_LOG("%s: disconnect tx\n", __func__);
 			bam_ops->sps_disconnect_ptr(bam_tx_pipe);
 			BAM_DMUX_LOG("%s: disconnect rx\n", __func__);
@@ -2037,6 +2039,7 @@ static int restart_notifier_cb(struct notifier_block *this,
 	if (code == SUBSYS_BEFORE_SHUTDOWN) {
 		BAM_DMUX_LOG("%s: begin\n", __func__);
 		in_global_reset = 1;
+		in_ssr = 1;
 		/* sync to ensure the driver sees SSR */
 		synchronize_srcu(&bam_dmux_srcu);
 		BAM_DMUX_LOG("%s: ssr signaling complete\n", __func__);
@@ -2115,6 +2118,7 @@ static int bam_init(void)
 	int skip_iounmap = 0;
 
 	in_global_reset = 0;
+	in_ssr = 0;
 	vote_dfab();
 	/* init BAM */
 	a2_virt_addr = ioremap_nocache(a2_phys_base, a2_phys_size);
@@ -2451,6 +2455,7 @@ void msm_bam_dmux_deinit(void)
 	restart_notifier_cb(NULL, SUBSYS_BEFORE_POWERUP, NULL);
 	restart_notifier_cb(NULL, SUBSYS_AFTER_POWERUP, NULL);
 	in_global_reset = 0;
+	in_ssr = 0;
 }
 EXPORT_SYMBOL(msm_bam_dmux_deinit);
 
