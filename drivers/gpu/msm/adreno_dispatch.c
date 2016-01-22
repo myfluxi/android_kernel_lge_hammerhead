@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -875,6 +875,8 @@ int adreno_dispatcher_queue_cmd(struct adreno_device *adreno_dev,
 
 
 	spin_unlock(&drawctxt->lock);
+
+	kgsl_pwrctrl_update_l2pc(&adreno_dev->dev);
 
 	/* Add the context to the dispatcher pending list */
 	dispatcher_queue_context(adreno_dev, drawctxt);

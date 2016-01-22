@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -44,6 +44,13 @@
  */
 #define INIT_UDELAY		200
 #define MAX_UDELAY		2000
+
+/*
+ * The effective duration of qos request in usecs. After
+ * timeout, qos request is cancelled automatically.
+ * Kept 80ms default, inline with default GPU idle time.
+ */
+#define KGSL_L2PC_CPU_TIMEOUT	(80 * 1000)
 
 struct clk_pair {
 	const char *name;
@@ -213,6 +220,33 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 }
 
 EXPORT_SYMBOL(kgsl_pwrctrl_pwrlevel_change);
+
+/**
+ * kgsl_pwrctrl_update_l2pc() - Update existing qos request
+ * @device: Pointer to the kgsl_device struct
+ *
+ * Updates an existing qos request to avoid L2PC on the
+ * CPUs (which are selected through dtsi) on which GPU
+ * thread is running. This would help for performance.
+ */
+void kgsl_pwrctrl_update_l2pc(struct kgsl_device *device)
+{
+	int cpu;
+
+	if (device->pwrctrl.l2pc_cpus_mask == 0)
+		return;
+
+	cpu = get_cpu();
+	put_cpu();
+
+	if ((1 << cpu) & device->pwrctrl.l2pc_cpus_mask) {
+		pm_qos_update_request_timeout(
+				&device->pwrctrl.l2pc_cpus_qos,
+				device->pwrctrl.pm_qos_active_latency,
+				KGSL_L2PC_CPU_TIMEOUT);
+	}
+}
+EXPORT_SYMBOL(kgsl_pwrctrl_update_l2pc);
 
 static int kgsl_pwrctrl_thermal_pwrlevel_store(struct device *dev,
 					 struct device_attribute *attr,
@@ -1171,6 +1205,9 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->pm_qos_active_latency = pdata->pm_qos_active_latency;
 	pwr->pm_qos_wakeup_latency = pdata->pm_qos_wakeup_latency;
 
+	kgsl_property_read_u32(device, "qcom,l2pc-cpu-mask",
+			&pwr->l2pc_cpus_mask);
+
 	pm_runtime_enable(device->parentdev);
 
 	if (pdata->bus_scale_table == NULL)
@@ -1445,6 +1482,10 @@ _sleep(struct kgsl_device *device)
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_SLEEP);
 		pm_qos_update_request(&device->pwrctrl.pm_qos_req_dma,
 					PM_QOS_DEFAULT_VALUE);
+		if (device->pwrctrl.l2pc_cpus_mask)
+			pm_qos_update_request(
+					&device->pwrctrl.l2pc_cpus_qos,
+					PM_QOS_DEFAULT_VALUE);
 		break;
 	case KGSL_STATE_SLEEP:
 	case KGSL_STATE_SLUMBER:
@@ -1480,6 +1521,10 @@ _slumber(struct kgsl_device *device)
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_SLUMBER);
 		pm_qos_update_request(&device->pwrctrl.pm_qos_req_dma,
 						PM_QOS_DEFAULT_VALUE);
+		if (device->pwrctrl.l2pc_cpus_mask)
+			pm_qos_update_request(
+					&device->pwrctrl.l2pc_cpus_qos,
+					PM_QOS_DEFAULT_VALUE);
 		break;
 	case KGSL_STATE_SLUMBER:
 		break;
