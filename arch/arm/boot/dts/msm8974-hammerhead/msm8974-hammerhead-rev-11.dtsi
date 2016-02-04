@@ -46,3 +46,7 @@
 &mdss_dsi0 {
 	qcom,dsi-pref-prim-pan = <&dsi_jdi_command_ors>;
 };
+
+&msm_gpu {
+	qcom,l2pc-cpu-mask = <0x0000000F>;
+};
