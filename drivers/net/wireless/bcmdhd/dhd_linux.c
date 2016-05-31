@@ -3659,6 +3659,7 @@ dhd_bus_start(dhd_pub_t *dhdp)
 
 	/* Enable oob at firmware */
 	dhd_enable_oob_intr(dhd->pub.bus, TRUE);
+	bcmsdh_disable_pc_add_req();
 #endif
 
 	/* If bus is not ready, can't come up */
@@ -4799,6 +4800,7 @@ dhd_bus_detach(dhd_pub_t *dhdp)
 
 #if defined(OOB_INTR_ONLY)
 			bcmsdh_unregister_oob_intr();
+			bcmsdh_enable_pc_remove_req();
 #endif
 		}
 	}

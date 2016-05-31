@@ -50,6 +50,8 @@ extern void dhdsdio_isr(void * args);
 #include <bcmutils.h>
 #include <dngl_stats.h>
 #include <dhd.h>
+#define BCMSDH_DISABLE_PC_LATENCY	100
+#define BCMSDH_ENABLE_PC_LATENCY	PM_QOS_DEFAULT_VALUE
 #endif
 
 /**
@@ -74,6 +76,10 @@ struct bcmsdh_hc {
 	bool oob_irq_enable_flag;
 #if defined(OOB_INTR_ONLY)
 	spinlock_t irq_lock;
+	struct pm_qos_request bcmsdh_qos_request;
+	struct delayed_work bcmsdh_pm_qos_del_req;
+	struct mutex pm_qos_mutex;
+	int pc_disabled;
 #endif
 };
 static bcmsdh_hc_t *sdhcinfo = NULL;
@@ -227,6 +233,7 @@ int bcmsdh_probe(struct device *dev)
 	sdhc->oob_irq_enable_flag = FALSE;
 #if defined(OOB_INTR_ONLY)
 	spin_lock_init(&sdhc->irq_lock);
+	mutex_init(&sdhc->pm_qos_mutex);
 #endif
 
 	/* chain SDIO Host Controller info together */
@@ -339,6 +346,9 @@ int bcmsdh_remove(struct device *dev)
 
 #if !defined(BCMLXSDMMC) || defined(OOB_INTR_ONLY)
 	dev_set_drvdata(dev, NULL);
+#endif
+#if defined(OOB_INTR_ONLY)
+	mutex_destroy(&sdhcinfo->pm_qos_mutex);
 #endif
 
 	return 0;
@@ -725,6 +735,50 @@ bool bcmsdh_is_oob_intr_registered(void)
 		return sdhcinfo->oob_irq_registered;
 	else
 		return FALSE;
+}
+
+static void bcmsdh_pm_qos_add_request(void)
+{
+	if (!sdhcinfo->oob_irq_enable_flag)
+		return;
+
+	SDLX_MSG(("%s: add request\n", __FUNCTION__));
+	pm_qos_add_request(&sdhcinfo->bcmsdh_qos_request,
+			PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
+}
+
+static void bcmsdh_pm_qos_remove_request(void)
+{
+	SDLX_MSG(("%s: remove request\n", __FUNCTION__));
+	pm_qos_remove_request(&sdhcinfo->bcmsdh_qos_request);
+}
+
+static void bcmsdh_pm_qos_update_request(int val)
+{
+	SDLX_MSG(("%s: update request %d\n", __FUNCTION__, val));
+	pm_qos_update_request(&sdhcinfo->bcmsdh_qos_request, val);
+}
+
+void bcmsdh_enable_pc_remove_req(void)
+{
+	mutex_lock(&sdhcinfo->pm_qos_mutex);
+	if (sdhcinfo->pc_disabled) {
+		sdhcinfo->pc_disabled--;
+		bcmsdh_pm_qos_update_request(BCMSDH_ENABLE_PC_LATENCY);
+		bcmsdh_pm_qos_remove_request();
+	}
+	mutex_unlock(&sdhcinfo->pm_qos_mutex);
+}
+
+void bcmsdh_disable_pc_add_req(void)
+{
+	mutex_lock(&sdhcinfo->pm_qos_mutex);
+	if (!sdhcinfo->pc_disabled) {
+		bcmsdh_pm_qos_add_request();
+		bcmsdh_pm_qos_update_request(BCMSDH_DISABLE_PC_LATENCY);
+		sdhcinfo->pc_disabled++;
+	}
+	mutex_unlock(&sdhcinfo->pm_qos_mutex);
 }
 #endif
 

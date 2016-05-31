@@ -238,6 +238,8 @@ extern int bcmsdh_register_oob_intr(void * dhdp);
 extern void bcmsdh_unregister_oob_intr(void);
 extern void bcmsdh_oob_intr_set(bool enable);
 extern bool bcmsdh_is_oob_intr_registered(void);
+extern void bcmsdh_enable_pc_remove_req(void);
+extern void bcmsdh_disable_pc_add_req(void);
 #endif
 
 /* Function to pass device-status bits to DHD. */
